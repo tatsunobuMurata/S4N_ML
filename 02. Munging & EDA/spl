@@ -57,3 +57,24 @@ source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="la
 | mvexpand work
 | eval work_title = spath(work, "workTitle"), composer = spath(work, "composerName"), conductor = spath(work, "conductorName"), soloist_names = spath(work, "soloists{}.soloistName"), soloiist_instruments = spath(work, "soloists{}.soloistInstrument")
 | table season orchestra date time venue location work_title composer conductor soloist_names soloiist_instruments
+
+[Convert nested events into a table: outputlookup]
+source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="lab_concert"
+| eval program = spath(_raw, "programs{}")
+| fields program
+| fields - _raw
+| mvexpand program
+| eval season = spath(program, "season"), orchestra = spath(program, "orchestra"), date = spath(program, "concerts{0}.Date"), time = spath(program, "concerts{0}.Time"), venue = spath(program, "concerts{0}.Venue"), location = spath(program, "concerts{0}.Location")
+| eval work = spath(program, "works{}")
+| fields - program
+| mvexpand work
+| eval work_title = spath(work, "workTitle"), composer = spath(work, "composerName"), conductor = spath(work, "conductorName"), soloist_names = spath(work, "soloists{}.soloistName"), soloiist_instruments = spath(work, "soloists{}.soloistInstrument")
+| table season orchestra date time venue location work_title composer conductor soloist_names soloiist_instruments
+| outputlookup lab_concerts.csv
+
+[Convert nested events into a table: inputlookup]
+| inputlookup lab_concerts.csv
+
+
+
+
