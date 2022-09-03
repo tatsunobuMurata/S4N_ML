@@ -1,0 +1,4 @@
+[Text log format]
+| tstats count where index=_internal by source
+| rex field=source "\/(?<source_file>[^\/]+)$"
+| stats sum(count) by source_file
