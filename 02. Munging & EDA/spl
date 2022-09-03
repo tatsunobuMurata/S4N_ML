@@ -1,4 +1,59 @@
-[Text log format]
-| tstats count where index=_internal by source
-| rex field=source "\/(?<source_file>[^\/]+)$"
-| stats sum(count) by source_file
+[Convert nested events into a table: 1]
+source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="lab_concert"
+| spath path=programs{} output=program
+| fields program
+| fields - _raw
+| mvexpand program
+| table program
+
+[Convert nested events into a table: 2]
+source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="lab_concert"
+| spath path=programs{} output=program
+| fields program
+| fields - _raw
+| mvexpand program
+| spath input=program path=season
+| spath input=program path=orchestra
+| spath input=program path=concerts{0}.Date output=date
+| spath input=program path=concerts{0}.Time output=time
+| spath input=program path=concerts{0}.Venue output=venue
+| spath input=program path=concerts{0}.Location output=location
+| spath input=program path=works{} output=work
+| fields - program
+| mvexpand work
+| table season orchestra date time venue location work
+
+[Convert nested events into a table: Complete]
+source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="lab_concert"
+| spath path=programs{} output=program
+| fields program
+| fields - _raw
+| mvexpand program
+| spath input=program path=season
+| spath input=program path=orchestra
+| spath input=program path=concerts{0}.Date output=date
+| spath input=program path=concerts{0}.Time output=time
+| spath input=program path=concerts{0}.Venue output=venue
+| spath input=program path=concerts{0}.Location output=location
+| spath input=program path=works{} output=work
+| fields - program
+| mvexpand work
+| spath input=work path=workTitle output=work_title
+| spath input=work path=composerName output=composer
+| spath input=work path=conductorName output=conductor
+| spath input=work path=soloists{}.soloistName output=soloist_names
+| spath input=work path=soloists{}.soloistInstrument output=soloiist_instruments
+| table season orchestra date time venue location work_title composer conductor soloist_names soloiist_instruments
+
+[Convert nested events into a table: Complete (eval version)]
+source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="lab_concert"
+| eval program = spath(_raw, "programs{}")
+| fields program
+| fields - _raw
+| mvexpand program
+| eval season = spath(program, "season"), orchestra = spath(program, "orchestra"), date = spath(program, "concerts{0}.Date"), time = spath(program, "concerts{0}.Time"), venue = spath(program, "concerts{0}.Venue"), location = spath(program, "concerts{0}.Location")
+| eval work = spath(program, "works{}")
+| fields - program
+| mvexpand work
+| eval work_title = spath(work, "workTitle"), composer = spath(work, "composerName"), conductor = spath(work, "conductorName"), soloist_names = spath(work, "soloists{}.soloistName"), soloiist_instruments = spath(work, "soloists{}.soloistInstrument")
+| table season orchestra date time venue location work_title composer conductor soloist_names soloiist_instruments
