@@ -104,3 +104,77 @@ index=_audit sourcetype=audittrail search_id!="rsa_*" action=search info=complet
 | eval search_id = if(isnull(search_id), 'data.search_props.sid', search_id)
 | stats first(total_run_time) first(scan_count) first(event_count) first(search_text) first(data.pct_cpu) first(data.pct_memory) by search_id
 | rename first(*) as *
+
+[Convert text data into numeric value: TFDIF fit]
+| inputlookup dga_domains 
+| fit TFIDF domain analyzer=char ngram_range=2-3 into "dga_ngram" 
+
+[Convert text data into numeric value: TFDIF apply]
+| inputlookup dga_domains.csv where class=legit
+| head 5
+| append 
+    [ inputlookup dga_domains.csv where class=dga
+    | head 5 ] 
+| apply dga_ngram
+
+[Convert text data into numeric value: URL Toolbox]
+| inputlookup dga_domains.csv where class=legit
+| head 5
+| append 
+    [ inputlookup dga_domains.csv where class=dga
+    | head 5 ] 
+| lookup ut_shannon_lookup word as domain
+| lookup ut_meaning_lookup word as domain
+
+[Convert text data into numeric value: Other techniques]
+| inputlookup dga_domains.csv where class=legit
+| head 5
+| append 
+    [ inputlookup dga_domains.csv where class=dga
+    | head 5 ] 
+| eval ut_digit_ratio=0.0, ut_vowel_ratio=0.0, ut_domain_length=max(1,len(domain))
+| rex field=domain max_match=0 "(?<digits>\\d)"
+| rex field=domain max_match=0 "(?<vowels>[aeiou])"
+| eval ut_digit_ratio=if(isnull(digits),0.0,(mvcount(digits) / ut_domain_length)), ut_vowel_ratio=if(isnull(vowels),0.0,(mvcount(vowels) / ut_domain_length)), ut_consonant_ratio=max(0.0,((1.000000 - ut_digit_ratio) - ut_vowel_ratio))
+| fields - digits, "-", vowels 
+
+[Understand the shape of data: Histogram]
+| inputlookup logins.csv
+| eval day_of_week = strftime(_time, "%a")
+| eval hour_of_day = strftime(_time, "%H")
+| search day_of_week IN (Mon, Tue, Wed, Thu, Fri) hour_of_day IN (0, 1, 2, 3, 4, 5, 6)
+| bin logins span=10
+| stats count by logins
+| makecontinuous logins
+
+[Understand the shape of data: Seasonality: check]
+| inputlookup iron.csv
+| fields month iron_production
+| autoregress iron_production
+| eval diff = iron_production - iron_production_p1
+| fillnull
+| fit ACF diff
+
+[Understand the shape of data: Seasonality: extraction]
+| inputlookup iron.csv
+| fields month iron_production
+| x11 add12(iron_production) as deseason
+| eval seasonality = iron_production - deseason
+| fields month seasonality
+
+[Understand the shape of data: Trend]
+| inputlookup iron.csv
+| fields month iron_production
+| trendline sma12(iron_production)
+
+[Understand the shape of data: Residuals]
+| inputlookup iron.csv
+| fields month iron_production
+| trendline sma12(iron_production) as trend
+| x11 add12(iron_production) as deseason
+| eval residual = deseason - trend
+| fields month residual
+
+
+
+
