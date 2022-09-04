@@ -1,0 +1,214 @@
+[Regression: fit]
+| inputlookup server_power.csv
+| sample seed=1 partitions=10
+| search partition_number<7
+| fit RandomForestRegressor "total-disk-utilization" from "total-disk-accesses" "total-disk-blocks" into my_diskutil_rfr
+
+[Regression: apply & r2]
+| inputlookup server_power.csv
+| sample seed=1 partitions=10
+| search partition_number>=7
+| apply my_diskutil_rfr
+| score r2_score total-disk-utilization against predicted(total-disk-utilization)
+
+[Regression: apply & rmse]
+| inputlookup server_power.csv
+| sample seed=1 partitions=10
+| search partition_number>=7
+| apply my_diskutil_rfr
+| score mean_squared_error total-disk-utilization against predicted(total-disk-utilization)
+| eval RMSE = sqrt(mean_squared_error)
+
+[Classification: fit]
+| inputlookup track_day.csv 
+| where isnotnull(engineCoolantTemperature)
+| sample seed=1 partitions=10
+| search partition_number<7
+| fit RandomForestClassifier vehicleType from batteryVoltage engineCoolantTemperature engineSpeed lateralGForce longitudeGForce speed verticalGForce into my_car_rfc
+
+[Classification: apply & confusion_matrix]
+| inputlookup track_day.csv 
+| where isnotnull(engineCoolantTemperature)
+| sample seed=1 partitions=10
+| search partition_number>=7
+| apply my_car_rfc
+| score confusion_matrix vehicleType against predicted(vehicleType)
+
+[Classification: apply & accuracy_score]
+| inputlookup track_day.csv 
+| where isnotnull(engineCoolantTemperature)
+| sample seed=1 partitions=10
+| search partition_number>=7
+| apply my_car_rfc
+| score accuracy_score vehicleType against predicted(vehicleType)
+
+[Classification: apply & precision_score (less FP)]
+| inputlookup track_day.csv 
+| where isnotnull(engineCoolantTemperature)
+| sample seed=1 partitions=10
+| search partition_number>=7
+| apply my_car_rfc
+| score precision_score vehicleType against predicted(vehicleType) average=micro
+
+[Classification: apply & recall_score (less FN)]
+| inputlookup track_day.csv 
+| where isnotnull(engineCoolantTemperature)
+| sample seed=1 partitions=10
+| search partition_number>=7
+| apply my_car_rfc
+| score recall_score vehicleType against predicted(vehicleType) average=micro
+
+[Classification: apply & precision_score/recall_score detail]
+| inputlookup track_day.csv 
+| where isnotnull(engineCoolantTemperature) 
+| sample seed=1 partitions=10 
+| search partition_number>=7 
+| apply my_car_rfc 
+| score precision_score vehicleType against predicted(vehicleType) average=none 
+| fields - "Actual*" "Predicted*" 
+| untable _x car precision_score 
+| appendcols 
+    [| inputlookup track_day.csv 
+    | where isnotnull(engineCoolantTemperature) 
+    | sample seed=1 partitions=10 
+    | search partition_number>=7 
+    | apply my_car_rfc 
+    | score recall_score vehicleType against predicted(vehicleType) average=none 
+    | fields - "Actual*" "Predicted*" 
+    | untable _x car recall_score ]
+
+[Forecasting: fit]
+| inputlookup app-logins.csv
+| timechart dc(user) as users span=1h
+| fit StateSpaceForecast users holdback=72 forecast_k=144 conf_interval=95 output_metadata=true into my_logins_ssf
+| `smartforecastviz("users")`
+
+[Forecasting: apply & rmse]
+| inputlookup app-logins.csv
+| timechart dc(user) as users span=1h
+| apply my_logins_ssf
+| `smartforecastviz("users")`
+| eval error = users - 'predicted(users)'
+| eval squared_error = pow(error, 2)
+| stats avg(squared_error) as mean_squared_error
+| eval RMSE = sqrt(mean_squared_error)
+
+[Clustering: fit]
+| inputlookup track_day.csv 
+| sample seed=1 partitions=10
+| search partition_number<7
+| fit StandardScaler batteryVoltage engineCoolantTemperature engineSpeed lateralGForce longitudeGForce speed verticalGForce into my_car_ss
+| fit PCA SS_* k=3 into my_car_pca
+| fit KMeans PC_* k=6 into my_car_km
+| fields cluster PC_*
+| fields - _time
+
+[Clustering: apply & silhouette_score]
+| inputlookup track_day.csv 
+| sample seed=1 partitions=10
+| search partition_number>=7
+| apply my_car_ss
+| apply my_car_pca
+| apply my_car_km
+| fields cluster PC_*
+| fields - _time
+| score silhouette_score cluster against PC_*
+
+[Clustering: apply & actual]
+| inputlookup track_day.csv 
+| sample seed=1 partitions=10
+| search partition_number>=7
+| apply my_car_ss
+| apply my_car_pca
+| apply my_car_km
+| chart count by cluster vehicleType
+
+[Clusterring: PCA & actual]
+| inputlookup track_day.csv 
+| sample seed=1 partitions=10
+| search partition_number>=7
+| apply my_car_ss
+| apply my_car_pca
+| fields vehicleType PC_*
+| fields - _time
+
+[Anomaly Detection: Probability: normal distribution: fit]
+| inputlookup app-logins.csv
+| timechart dc(user) as users span=1h
+| eval hour_of_day = strftime(_time, "%H")
+| eval day_of_week = strftime(_time, "%a")
+| stats count avg(users) stdev(users) p50(users) p75(users) p25(users) by day_of_week hour_of_day
+| outputlookup my_logins_dist.csv
+
+[Anomaly Detection: Probability: normal distribution: stdev apply]
+| inputlookup app-logins.csv
+| timechart dc(user) as users span=1h
+| eval hour_of_day = strftime(_time, "%H")
+| eval day_of_week = strftime(_time, "%a")
+| lookup my_logins_dist.csv day_of_week hour_of_day
+| eval is_outlier_stdev = if(users > 'avg(users)' + 3 * 'stdev(users)', 1, 0)
+
+[Anomaly Detection: Probability: normal distribution: iqr apply]
+| inputlookup app-logins.csv
+| timechart dc(user) as users span=1h
+| eval hour_of_day = strftime(_time, "%H")
+| eval day_of_week = strftime(_time, "%a")
+| lookup my_logins_dist.csv day_of_week hour_of_day
+| eval is_outlier_iqr = if(users > 'p75(users)' + 1.5 * ('p75(users)' - 'p50(users)'), 1, 0)
+
+[Anomaly Detection: Probability: DensityFunction: fit global]
+| inputlookup app-logins.csv
+| fit DensityFunction count show_density=true into my_logins_global_df as is_outlier_global
+| rename count as target 
+| bin target bins=100 
+| stats count avg("ProbabilityDensity(count)") as pd by target
+| makecontinuous target
+
+[Anomaly Detection: Probability: DensityFunction: fit by day, hour]
+| inputlookup app-logins.csv
+| eval hour_of_day = strftime(_time, "%H")
+| eval day_of_week = strftime(_time, "%a")
+| fit DensityFunction count by "day_of_week,hour_of_day" show_density=true into my_logins_day_hour_df as is_outlier_day_hour
+
+[Anomaly Detection: Probability: DensityFunction: fit by status]
+| inputlookup app-logins.csv
+| eval hour_of_day = strftime(_time, "%H")
+| eval day_of_week = strftime(_time, "%a")
+| fit DensityFunction count by "status" show_density=true into my_logins_status_df as is_outlier_status
+
+[Anomaly Detection: Probability: DensityFunction: apply global]
+| inputlookup app-logins.csv 
+| eval hour_of_day = strftime(_time, "%H") 
+| eval day_of_week = strftime(_time, "%a") 
+| apply my_logins_global_df threshold=0.0001
+| search is_outlier_global=1
+
+[Anomaly Detection: Probability: DensityFunction: apply by day hour]
+| inputlookup app-logins.csv 
+| eval hour_of_day = strftime(_time, "%H") 
+| eval day_of_week = strftime(_time, "%a") 
+| apply my_logins_day_hour_df threshold=0.0001
+| search is_outlier_day_hour=1
+
+[Anomaly Detection: Probability: DensityFunction: apply status]
+| inputlookup app-logins.csv 
+| eval hour_of_day = strftime(_time, "%H") 
+| eval day_of_week = strftime(_time, "%a") 
+| apply my_logins_status_df threshold=0.0001
+| search is_outlier_status=1
+
+[Anomaly Detection: Prediction results]
+| inputlookup app-logins.csv
+| timechart dc(user) as users span=1h
+| apply my_logins_ssf
+| where users > 'upper95(predicted(users))'
+
+[Anomaly Detection: Volume of change: MAD]
+| inputlookup app-logins.csv
+| timechart dc(user) as users span=1h
+| streamstats window=24 current=true median("users") as median 
+| eval absDev = (abs(users - median)) 
+| streamstats window=24 current=true median(absDev) as median_absDev 
+| eval lower_bound = (median - median_absDev * exact(3)), upper_bound = (median + median_absDev * exact(3)) 
+| eval is_outlier_mad = if(users < lower_bound OR users > upper_bound, 1, 0)
+| fields _time users lower_bound upper_bound
