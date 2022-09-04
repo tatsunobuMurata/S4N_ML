@@ -175,6 +175,45 @@ index=_audit sourcetype=audittrail search_id!="rsa_*" action=search info=complet
 | eval residual = deseason - trend
 | fields month residual
 
+[Find feature variables: Pearson correlation coefficient]
+| inputlookup server_power.csv
+| score pearsonr ac_power against total-cpu-utilization
 
+[Find feature variables: Spearman rank correlation coefficient]
+| inputlookup server_power.csv
+| score spearmanr ac_power against total-cpu-utilization
 
+[Find feature variables: analyzefield]
+| inputlookup firewall_traffic.csv 
+| head 50000 
+| analyzefields classfield=used_by_malware
+
+[Find feature variables: associate]
+| inputlookup disk_failures.csv
+| associate
+
+[Find feature variables: FieldSelector]
+| inputlookup server_power.csv 
+| fit RobustScaler total-*
+| fit FieldSelector ac_power from RS_*
+| fields _time ac_power fs_*
+
+[Visualization]
+| inputlookup dga_domains.csv where class=legit 
+| head 5 
+| append 
+    [ inputlookup dga_domains.csv where class=dga 
+    | head 5 ] 
+| apply dga_ngram 
+| apply dga_pca 
+| fields class PC_*
+
+[Outlier handling in training data: anomalydetection action=filter (default)]
+| inputlookup server_power.csv 
+| anomalydetection
+
+[Outlier handling in training data: anomalydetection action=annotate]
+| inputlookup server_power.csv 
+| anomalydetection action=annotate
+| where isnull(probable_cause)
 
