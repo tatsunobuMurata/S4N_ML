@@ -1,0 +1,21 @@
+[Composit Model]
+| inputlookup app-logins.csv
+| eval hour_of_day = strftime(_time, "%H") 
+| eval day_of_week = strftime(_time, "%a") 
+| apply my_logins_global_df threshold=0.0001
+| apply my_logins_day_hour_df threshold=0.0001
+| apply my_logins_status_df threshold=0.0001
+| timechart sum(count) as count sum(is_outlier_*) as is_outlier_* dc(user) as users span=1h
+| eval hour_of_day = strftime(_time, "%H")
+| eval day_of_week = strftime(_time, "%a")
+| lookup my_logins_dist.csv day_of_week hour_of_day
+| eval is_outlier_stdev = if(users > 'avg(users)' + 3 * 'stdev(users)', 1, 0)
+| apply my_logins_ssf
+| eval is_outlier_prediction = if(users > 'upper95(predicted(users))', 1, 0)
+| fillnull value=0
+| eval risk_score = 0
+| foreach is_outlier_*
+    [ eval risk_score = risk_score + <<FIELD>> ]
+| where risk_score > 0
+| fields _time risk_score day_of_week hour_of_day count users is_outlier_* *
+| sort - risk_score
