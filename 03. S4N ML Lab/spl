@@ -1,0 +1,104 @@
+[Challenges #1: sample dataset]
+| inputlookup track_day.csv
+| rename * as x_*, x_vehicleType as y_vehicleType
+| sample 1000 by y_vehicleType seed=123
+| outputlookup mytrackdata.csv
+
+[Challenges #1: fieldsummary]
+| inputlookup mytrackdata.csv
+| fieldsummary
+| fields - values
+
+[Challenges #1: parallel coordinates]
+| inputlookup mytrackdata.csv
+| table y_* x_*
+
+[Challenges #1: histogram macro]
+| inputlookup mytrackdata.csv
+| `histogram(x_batteryVoltage, 1000)`
+
+[Challenges #1: histogram SPL]
+| inputlookup "mytrackdata.csv" 
+| bin "x_batteryVoltage" bins=1000 
+| stats count by "x_batteryVoltage" 
+| makecontinuous "x_batteryVoltage" 
+| fillnull count
+
+[Challenges #1: histogram SPL colored by vehicleType]
+| inputlookup "mytrackdata.csv" 
+| bin "x_batteryVoltage" bins=1000 
+| chart count by "x_batteryVoltage" y_vehicleType
+| makecontinuous "x_batteryVoltage" 
+| fillnull count
+
+[Challenges #1: boxplot macro]
+| inputlookup "mytrackdata.csv" 
+| `boxplot`
+
+[Challenges #1: boxplot SPL]
+| inputlookup "mytrackdata.csv" 
+| untable _x field_name value 
+| stats min exactperc25 median exactperc75 max by field_name 
+| untable field_name calculations value 
+| xyseries calculations field_name value 
+| eval calculations = rtrim(calculations, "(value)")
+
+[Challenges #1: boxplot w/ StandardScaler]
+| inputlookup "mytrackdata.csv" 
+| fit StandardScaler x_*
+| fields SS_*
+| `boxplot`
+
+[Challenges #1: imputer vaule check]
+| inputlookup "mytrackdata.csv" 
+| fit Imputer x_engineCoolantTemperature strategy="median" 
+| where isnull(x_engineCoolantTemperature)
+
+[Challenges #1: imputer replace]
+| inputlookup "mytrackdata.csv" 
+| fit Imputer x_engineCoolantTemperature strategy="median" 
+| rename Imputed_* as * 
+| fieldsummary 
+| fields - values
+
+[Challenges #2: experiment]
+| inputlookup mytrackdata.csv
+
+[Challenges #3: car_classification RandomForestRegressor]
+| inputlookup mytrackdata.csv
+| apply car_classifer
+| table y_* predicted* *
+| `confusionmatrix("y_vehicleType", "predicted(y_vehicleType)")`
+
+[Challenges #3: car_classification RandomForestRegressor]
+| inputlookup mytrackdata.csv
+| apply car_classifer
+| table y_* predicted* *
+| `confusionmatrix("y_vehicleType", "predicted(y_vehicleType)")`
+
+[Challenges #3: car_classification SVM]
+| inputlookup mytrackdata.csv
+| apply car_classifer_StandardScaler_1 
+| apply car_classifer
+| table y_* predicted* *
+| `confusionmatrix("y_vehicleType", "predicted(y_vehicleType)")`
+
+[Challenges #3: cross-validation]
+| inputlookup mytrackdata.csv 
+| fit StandardScaler "x_batteryVoltage", "x_engineCoolantTemperature", "x_engineSpeed", "x_lateralGForce", "x_longitudeGForce", "x_speed", "x_verticalGForce" with_mean=true with_std=true into _exp_draft_ab60714e49d34f2f9eb09034b1530c9b_StandardScaler_1 
+| fit SVM "y_vehicleType" from "SS_x_batteryVoltage" "SS_x_engineCoolantTemperature" "SS_x_engineSpeed" "SS_x_lateralGForce" "SS_x_longitudeGForce" "SS_x_speed" "SS_x_verticalGForce" kfold_cv=3
+
+[Challenges #4: clustering]
+| inputlookup track_day.csv 
+| fit StandardScaler "batteryVoltage", "engineCoolantTemperature", "engineSpeed", "lateralGForce", "longitudeGForce", "speed", "verticalGForce" with_mean=true with_std=true into example_vehicles_StandardScaler_1 
+| fit PCA "SS_batteryVoltage", "SS_engineCoolantTemperature", "SS_engineSpeed", "SS_lateralGForce", "SS_longitudeGForce", "SS_speed", "SS_verticalGForce" k=3 into example_vehicles_PCA_2 
+| fit KMeans k=4 "PC_1" "PC_2" "PC_3" into "example_vehicles"
+| fields cluster PC_*
+
+[Challenges #4: clustering evaluation]
+| inputlookup track_day.csv 
+| fit StandardScaler "batteryVoltage", "engineCoolantTemperature", "engineSpeed", "lateralGForce", "longitudeGForce", "speed", "verticalGForce" with_mean=true with_std=true into example_vehicles_StandardScaler_1 
+| fit PCA "SS_batteryVoltage", "SS_engineCoolantTemperature", "SS_engineSpeed", "SS_lateralGForce", "SS_longitudeGForce", "SS_speed", "SS_verticalGForce" k=3 into example_vehicles_PCA_2 
+| fit KMeans k=6 "PC_1" "PC_2" "PC_3" into "example_vehicles"
+| stats count values(vehicleType) avg(cluster_distance) by cluster
+
