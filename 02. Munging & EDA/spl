@@ -1,3 +1,8 @@
+[Extract fields using rex command]
+| tstats count where index=_internal by source
+| rex field=source "\/(?<source_file>[^\/]+)$"
+| stats sum(count) by source_file
+
 [Convert nested events into a table: 1]
 source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="lab_concert"
 | spath path=programs{} output=program
