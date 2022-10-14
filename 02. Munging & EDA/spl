@@ -228,7 +228,7 @@ index=_audit sourcetype=audittrail search_id!="rsa_*" action=search info=complet
 
 [Outlier handling in training data: histogram after removing outliers method=histogram]
 | inputlookup server_power.csv 
-| anomalydetection action=annotate method=zscore
+| anomalydetection action=annotate
 | where isnull(probable_cause)
 | bin total-disk-blocks span=10
 | stats count by total-disk-blocks
