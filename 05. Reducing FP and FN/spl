@@ -19,3 +19,103 @@
 | where risk_score > 0
 | fields _time risk_score day_of_week hour_of_day count users is_outlier_* *
 | sort - risk_score
+
+[Practice: Anomalous Byte Sent Detection - stats model]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0
+| bin _time span=5m
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval mint = strftime(_time, "%M")
+| stats count sum(bytes) as bytes by date clientip dow hod mint
+| stats dc(date) as num_date_points count as num_data_points sum(count) as num_raw_points avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) by clientip dow hod
+| eval iqr = 'p75(bytes)' - 'p25(bytes)'
+| outputlookup bytes_stats_by_clientip_1h.csv
+
+[Practice: Anomalous Byte Sent Detection - cluster similar clients for 1 hour span]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0
+| bin _time span=5m
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval mint = strftime(_time, "%M")
+| stats count sum(bytes) as bytes by date clientip dow hod mint
+| stats dc(date) as num_date_points count as num_data_points sum(count) as num_raw_points avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) by clientip dow hod
+| fit KMeans avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) k=64
+| eval hod = if(len(hod)<2, "0"+hod, hod)
+| outputlookup clientip_clusters_1h.csv
+
+[Practice: Anomalous Byte Sent Detection - probability density model for 1 hour span]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0
+| bin _time span=5m
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval mint = strftime(_time, "%M")
+| stats count sum(bytes) as bytes by date clientip dow hod mint
+| lookup clientip_clusters_1h.csv clientip dow hod output cluster
+| eval dow_category = if(date="Sat" OR date="Sun", "weekend", "bizday")
+| fit DensityFunction bytes by "cluster,dow_category,hod" into app:bytes_prbability_density_by_clientip_cluster_1h
+
+[Practice: Anomalous Byte Sent Detection - cluster similar clients for 8 hour span]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0
+| bin _time span=5m
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval mint = strftime(_time, "%M")
+| stats count sum(bytes) as bytes by date clientip dow hod mint
+| eval hod = floor(hod / 8) * 8 
+| stats dc(date) as num_date_points count as num_data_points sum(count) as num_raw_points avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) by clientip dow hod
+| fit KMeans avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) k=64
+| outputlookup clientip_clusters_8h.csv
+
+[Practice: Anomalous Byte Sent Detection - probability density model for 8 hour span]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0
+| bin _time span=5m
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval mint = strftime(_time, "%M")
+| stats count sum(bytes) as bytes by date clientip dow hod mint
+| eval hod = floor(hod / 8) * 8 
+| lookup clientip_clusters_8h.csv clientip dow hod output cluster
+| eval dow_category = if(date="Sat" OR date="Sun", "weekend", "bizday")
+| fit DensityFunction bytes by "cluster,dow_category,hod" into app:bytes_prbability_density_by_clientip_cluster_8h
+
+[Practice: Anomalous Byte Sent Detection - detect using stats model]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2023:10:0:0 latest=01/01/2023:10:05:0
+| bin _time span=5m
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval mint = strftime(_time, "%M")
+| stats count sum(bytes) as bytes by date clientip dow hod mint
+| lookup bytes_stats_by_clientip_1h.csv clientip dow hod
+| eval lb = 'avg(bytes)' - 'stdev(bytes)' * 3, ub = 'avg(bytes)' + 'stdev(bytes)' * 3
+| eval stats_outlier = if(bytes < lb OR bytes > ob, 1, 0)
+
+[Practice: Anomalous Byte Sent Detection - detect using probability density model for 1 hour span]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2023:10:0:0 latest=01/01/2023:10:05:0
+| bin _time span=5m
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval mint = strftime(_time, "%M")
+| stats count sum(bytes) as bytes by date clientip dow hod mint
+| lookup clientip_clusters_1h.csv clientip dow hod output cluster
+| eval dow_category = if(date="Sat" OR date="Sun", "weekend", "bizday")
+| apply bytes_prbability_density_by_clientip_cluster_1h as pb1h_outlier
+
+[Practice: Anomalous Byte Sent Detection - detect using probability density model for 8 hour span]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2023:10:0:0 latest=01/01/2023:10:05:0
+| bin _time span=5m
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval mint = strftime(_time, "%M")
+| stats count sum(bytes) as bytes by date clientip dow hod mint
+| eval hod = floor(hod / 8) * 8 
+| lookup clientip_clusters_8h.csv clientip dow hod output cluster
+| apply bytes_prbability_density_by_clientip_cluster_8h as pb1h_outlier
+
