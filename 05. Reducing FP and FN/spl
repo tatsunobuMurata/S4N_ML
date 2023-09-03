@@ -120,3 +120,14 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 
 | eval dow_category = if(date="Sat" OR date="Sun", "weekend", "bizday")
 | apply bytes_prbability_density_by_clientip_cluster_8h as pb1h_outlier
 
+[Practice: Anomalous Byte Sent Detection - detect using MAD for last 1 hour]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:14:25:0 latest=01/16/2023:15:30:0
+| bin _time span=5m
+| sort clientip _time
+| streamstats window=12 median(bytes) as median by clientip reset_on_change=true
+| eval abs_dev = abs(bytes - median)
+| streamstats window=12 count median(abs_dev) as mad by clientip reset_on_change=true
+| eval lb = meidan - (mad * 1.5), ub = median + (mad * 1.5)
+| eval outlier = if(bytes < lb OR bytes > ub, 1, 0)
+| fields _time clientip bytes lb ub outlier count mad median
+| stats latest(*) as * by clientip
