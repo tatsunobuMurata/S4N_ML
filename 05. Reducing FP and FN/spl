@@ -84,7 +84,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 la
 | fit DensityFunction bytes by "cluster,dow_category,hod" into app:bytes_prbability_density_by_clientip_cluster_8h
 
 [Practice: Anomalous Byte Sent Detection - detect using stats model]
-source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2023:10:0:0 latest=01/01/2023:10:05:0
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 latest=01/16/2023:15:30:0
 | bin _time span=5m
 | eval date = strftime(_time, "%Y/%m/%d") 
 | eval dow = strftime(_time, "%a") 
@@ -96,7 +96,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2023:10:0:0 l
 | eval stats_outlier = if(bytes < lb OR bytes > ob, 1, 0)
 
 [Practice: Anomalous Byte Sent Detection - detect using probability density model for 1 hour span]
-source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2023:10:0:0 latest=01/01/2023:10:05:0
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 latest=01/16/2023:15:30:0
 | bin _time span=5m
 | eval date = strftime(_time, "%Y/%m/%d") 
 | eval dow = strftime(_time, "%a") 
@@ -108,7 +108,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2023:10:0:0 l
 | apply bytes_prbability_density_by_clientip_cluster_1h as pb1h_outlier
 
 [Practice: Anomalous Byte Sent Detection - detect using probability density model for 8 hour span]
-source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2023:10:0:0 latest=01/01/2023:10:05:0
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 latest=01/16/2023:15:30:0
 | bin _time span=5m
 | eval date = strftime(_time, "%Y/%m/%d") 
 | eval dow = strftime(_time, "%a") 
@@ -117,5 +117,6 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2023:10:0:0 l
 | stats count sum(bytes) as bytes by date clientip dow hod mint
 | eval hod = floor(hod / 8) * 8 
 | lookup clientip_clusters_8h.csv clientip dow hod output cluster
+| eval dow_category = if(date="Sat" OR date="Sun", "weekend", "bizday")
 | apply bytes_prbability_density_by_clientip_cluster_8h as pb1h_outlier
 
