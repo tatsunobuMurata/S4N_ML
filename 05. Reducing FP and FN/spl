@@ -97,7 +97,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 
 
 [Practice: Anomalous Byte Sent Detection - detect using probability density model for 1 hour span]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 latest=01/16/2023:15:30:0
-| bin _time span=5m
+| bin _time span=5m as bin_time
 | eval date = strftime(_time, "%Y/%m/%d") 
 | eval dow = strftime(_time, "%a") 
 | eval hod = strftime(_time, "%H") 
@@ -131,3 +131,5 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:14:25:0 
 | eval mad_outlier = if(bytes < lb OR bytes > ub, 1, 0)
 | fields _time clientip bytes lb ub outlier count mad median
 | stats latest(*) as * by clientip
+
+[Practice: Anomalous Byte Sent Detection - composite models]
