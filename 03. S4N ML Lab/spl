@@ -64,6 +64,16 @@
 [Challenges #2: experiment]
 | inputlookup mytrackdata.csv
 
+[Challenges #2: draw model lines with histogram]
+| inputlookup mytrackdata.csv
+| fit DensityFunction "x_engineSpeed" by "y_vehicleType" dist=auto threshold=0.0001 show_density=true
+| bin x_engineSpeed span=100
+| stats count avg(ProbabilityDensity(x_engineSpeed)) as probability by y_vehicleType x_engineSpeed
+| search y_vehicleType="2008 BMW M3"
+| makecontinuous x_engineSpeed
+| sort x_engineSpeed
+| fields x_engineSpeed count probability
+
 [Challenges #3: car_classification RandomForestRegressor]
 | inputlookup mytrackdata.csv
 | apply car_classifer
