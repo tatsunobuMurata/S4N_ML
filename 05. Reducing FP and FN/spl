@@ -132,4 +132,17 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:14:25:0 
 | fields _time clientip bytes lb ub outlier count mad median
 | stats latest(*) as * by clientip
 
+[Practice: Anomalous Byte Sent Detection - detect using cohesive approach for 1 hour span]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 latest=01/16/2023:15:30:0
+| bin _time span=5m as bin_time
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval mint = strftime(_time, "%M")
+| stats count sum(bytes) as bytes by date clientip dow hod mint
+| lookup clientip_clusters_1h.csv clientip dow hod output cluster
+| eventstats avg(bytes) stdev(bytes) by cluster
+| eval lb = 'avg(bytes)' - 3 * 'stdev(bytes)', ub = 'avg(bytes)' + 3 * 'stdev(bytes)'
+| eval cohesive_outlier = if(bytes < lb OR bytes > ub, 1, 0)
+
 [Practice: Anomalous Byte Sent Detection - composite models]
