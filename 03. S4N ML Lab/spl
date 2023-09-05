@@ -29,7 +29,7 @@
 | bin "x_batteryVoltage" bins=1000 
 | chart count by "x_batteryVoltage" y_vehicleType
 | makecontinuous "x_batteryVoltage" 
-| fillnull count
+| fillnull
 
 [Challenges #1: boxplot macro]
 | inputlookup "mytrackdata.csv" 
