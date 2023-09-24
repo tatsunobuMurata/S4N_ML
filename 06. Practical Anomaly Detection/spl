@@ -137,6 +137,18 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:14:25:0 
 | fields _time clientip count bytes mad lb_mad ub_mad outlier_mad
 | outputlookup bytes_mad_results.csv
 
+[Anomalous Byte Sent Detection - detect using prediction results]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/15/2023:15:30:0 latest=01/16/2023:15:30:0
+| bin _time span=5m
+| stats count sum(bytes) as bytes by _time
+| makecontinuous _time
+| fillnull
+| fit StateSpaceForecast bytes holdback=1h forecast_k=1h conf_interval=99
+| addinfo
+| where _time = (info_max_time - 300)
+| eval outlier_pre = if(bytes < 'lower99(predicted(bytes))' OR bytes > 'upper99(predicted(bytes))', 1, 0)
+| fields _time count bytes predicted(bytes) lower99(predicted(bytes)) upper99(predicted(bytes)) outlier_pre
+
 [Anomalous Byte Sent Detection - detect using composite models]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 latest=01/16/2023:15:30:0 
 | bin _time span=5m 
