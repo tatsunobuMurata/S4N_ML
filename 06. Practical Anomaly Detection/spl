@@ -1,3 +1,48 @@
+[Anomalous Byte Sent Detection - histogram for 107.3.146.207, Fri, 8 am to 4 pm]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0 clientip=107.3.146.207
+| bin _time span=5m
+| stats count sum(bytes) as bytes by _time clientip
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval moh = strftime(_time, "%M")
+| eval pod = floor(hod / 8) * 8 
+| search dow=Fri pod=8
+| bin bytes span=100
+| stats count by bytes
+| sort bytes
+| makecontinuous
+
+[Anomalous Byte Sent Detection - histogram for 107.3.146.207, Fri, 8 am to 9 am]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0 clientip=107.3.146.207
+| bin _time span=5m
+| stats count sum(bytes) as bytes by _time clientip
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval moh = strftime(_time, "%M")
+| eval pod = floor(hod / 8) * 8 
+| search dow=Fri hod=8
+| bin bytes span=100
+| stats count by bytes
+| sort bytes
+| makecontinuous
+
+[Anomalous Byte Sent Detection - histogram for 107.3.146.207, Fri, 8:00 am to 8:05 am]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0 clientip=107.3.146.207
+| bin _time span=5m
+| stats count sum(bytes) as bytes by _time clientip
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval moh = strftime(_time, "%M")
+| eval pod = floor(hod / 8) * 8 
+| search dow=Fri hod=8 moh=0
+| bin bytes span=100
+| stats count by bytes
+| sort bytes
+| makecontinuous
+
 [Anomalous Byte Sent Detection - create stats model 5m]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0
 | bin _time span=5m
