@@ -194,6 +194,27 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/15/2023:15:30:0 
 | eval outlier_pre = if(bytes < 'lower99(predicted(bytes))' OR bytes > 'upper99(predicted(bytes))', 1, 0)
 | fields _time count bytes predicted(bytes) lower99(predicted(bytes)) upper99(predicted(bytes)) outlier_pre
 
+[Anomalous Byte Sent Detection - detect using prediction results (more granular version)]
+source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/9/2023:15:00:0 latest=01/16/2023:16:00:0 
+| bin _time span=1h 
+| chart sum(bytes) as bytes by _time clientip limit=0
+| makecontinuous _time
+| fillnull
+| predict future_timespan=1 holdback=1 lower99=lower99 upper99=upper99 period=168
+    [ search source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/9/2023:15:30:0 latest=01/16/2023:15:30:0 
+    | stats count by clientip 
+    | stats values(clientip) as clientip 
+    | eval clientip = mvjoin(clientip, ",") 
+    | return $clientip ]
+| tail 1
+| untable _time clientip bytes
+| rex field=clientip "((?<boundary>(upper|lower)99)\(|)(?<class>prediction)\((?<clientip>[^\)]+)\)"
+| eval bytes_actual = if(isnull(class), bytes, null()), bytes_lb = if(match(boundary, "lower"), bytes, null()), bytes_ub = if(match(boundary, "upper"), bytes, null()), bytes_prediction = if(isnull(boundary) AND class="prediction", bytes, null())
+| stats values(bytes_*) as bytes_* by _time clientip
+| eval outlier_pre = if(bytes < bytes_lb OR bytes > bytes_ub, 1, 0)
+| rename bytes_actual as bytes
+| fields _time clientip bytes bytes_prediction bytes_lb bytes_ub outlier_pre
+
 [Anomalous Byte Sent Detection - detect using composite models]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 latest=01/16/2023:15:30:0 
 | bin _time span=5m 
