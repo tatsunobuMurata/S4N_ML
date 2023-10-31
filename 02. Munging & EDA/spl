@@ -143,6 +143,9 @@ index=_audit sourcetype=audittrail search_id!="rsa_*" action=search info=complet
 | eval ut_digit_ratio=if(isnull(digits),0.0,(mvcount(digits) / ut_domain_length)), ut_vowel_ratio=if(isnull(vowels),0.0,(mvcount(vowels) / ut_domain_length)), ut_consonant_ratio=max(0.0,((1.000000 - ut_digit_ratio) - ut_vowel_ratio))
 | fields - digits, "-", vowels 
 
+[Understand the shape of data: Histogram (original data)]
+| inputlookup logins.csv
+
 [Understand the shape of data: Histogram]
 | inputlookup logins.csv
 | eval day_of_week = strftime(_time, "%a")
@@ -151,6 +154,10 @@ index=_audit sourcetype=audittrail search_id!="rsa_*" action=search info=complet
 | bin logins span=10
 | stats count by logins
 | makecontinuous logins
+
+[Understand the shape of data: Time Series Data]
+| inputlookup iron.csv
+| fields month iron_production
 
 [Understand the shape of data: Seasonality: check]
 | inputlookup iron.csv
