@@ -4,7 +4,7 @@
 | stats sum(count) by source_file
 
 [Convert nested events into a table: 1]
-source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="lab_concert"
+source="nested_event.json" sourcetype="lab_concert"
 | spath path=programs{} output=program
 | fields program
 | fields - _raw
@@ -12,7 +12,7 @@ source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="la
 | table program
 
 [Convert nested events into a table: 2]
-source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="lab_concert"
+source="nested_event.json" sourcetype="lab_concert"
 | spath path=programs{} output=program
 | fields program
 | fields - _raw
@@ -29,7 +29,7 @@ source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="la
 | table season orchestra date time venue location work
 
 [Convert nested events into a table: Complete]
-source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="lab_concert"
+source="nested_event.json" sourcetype="lab_concert"
 | spath path=programs{} output=program
 | fields program
 | fields - _raw
@@ -51,7 +51,7 @@ source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="la
 | table season orchestra date time venue location work_title composer conductor soloist_names soloiist_instruments
 
 [Convert nested events into a table: Complete (eval version)]
-source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="lab_concert"
+source="nested_event.json" sourcetype="lab_concert"
 | eval program = spath(_raw, "programs{}")
 | fields program
 | fields - _raw
@@ -64,7 +64,7 @@ source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="la
 | table season orchestra date time venue location work_title composer conductor soloist_names soloiist_instruments
 
 [Convert nested events into a table: outputlookup]
-source="nested_event.json" host="Domane-Demo-i-0404836f69d8f6c7a" sourcetype="lab_concert"
+source="nested_event.json" sourcetype="lab_concert"
 | eval program = spath(_raw, "programs{}")
 | fields program
 | fields - _raw
