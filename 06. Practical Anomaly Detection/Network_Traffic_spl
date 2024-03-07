@@ -1,1 +1,27 @@
+# This is SPL examples to implement anomalous network traffic behaviors using Network_Traffic data model.
+# You can use below features other than sum(bytes) to detect anomalous network activities.
+# - Session Count
+# - Uniqueu Source IP
+
+[Draw time chart to determine on/off hours in your traffic activties]
+# Run below search for previous week to determine to see which hour of day is on-hours for your network traffic.
+| tstats summariesonly=true sum(All_Traffic.bytes) from datamodel=Network_Traffic.All_Traffic by _time span=1h
+
+[Draw histogram for each time category, 1. weekday on-hour, 2. weekday off-hour, 3. weekend on-hour, 4. weekend off-hour]
+# This needs to run for enough time range. It's expected to run for last 30 days at least.
+# You need to determine the condition to identify weekday, weekend, on-hour, and off-hour based on the your traffic bevior.
+# The example below is the SPL to draw histogram for weekday on-hour. You need to change the search condition to draw histograms for the other categories.
+# Adjust span parameter value for bin command to fit the number of bins for the better histogram shape.
+| tstats summariesonly=true sum(All_Traffic.bytes) from datamodel=Network_Traffic.All_Traffic by _time span=5m
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval moh = strftime(_time, "%M")
+| eval tod = if(dow = "Sat" OR dow = "Sun", "weekend", "weekday")
+| eval toh = if(hod >= 10 AND hod <=17, "on-hour", "off-hour")
+| bin sum(All_Traffic.bytes) span=1000000
+| search tod=weekday toh=on-hour
+| stats count by sum(All_Traffic.bytes) 
+| makecontinuous sum(All_Traffic.bytes)
+
 
