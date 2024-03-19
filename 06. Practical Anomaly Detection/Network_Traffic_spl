@@ -95,3 +95,52 @@
 | lookup clientip_clusters_1h.csv All_Traffic.src_ip dow hod output cluster_1h
 | where isnotnull(cluster_1h)
 | fit DensityFunction bytes by "cluster_1h,biz,hod" into app:bytes_prbability_density_by_clientip_cluster_1h
+
+[Cluster similar clients for 8 hour span]
+# This needs to run for enough time range. It's expected to run for last 30 days at least.
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval pod = floor(hod / 8) * 8 
+| stats dc(date) as num_date_points count as num_data_points sum(count) as num_raw_points avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) by All_Traffic.src_ip dow pod
+| fit KMeans avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) k=64 as cluster_8h
+| outputlookup clientip_clusters_8h.csv
+
+[Create probability density model for 8 hour span]
+# This needs to run for enough time range. It's expected to run for last 30 days at least.
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval pod = floor(hod / 8) * 8 
+| eval biz = if(date="Sat" OR date="Sun", "off", "on")
+| lookup clientip_clusters_8h.csv All_Traffic.src_ip dow pod output cluster_8h
+| where isnotnull(cluster_8h)
+| fit DensityFunction bytes by "cluster_8h,biz,pod" into app:bytes_prbability_density_by_clientip_cluster_8h
+
+[Detect using stats model 5m]
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval moh = strftime(_time, "%M")
+| lookup bytes_stats_by_clientip_1h.csv All_Traffic.src_ip dow hod moh
+| eval lb_5m = avg_bytes_5m - stdev_bytes_5m * 3, ub_5m = avg_bytes_5m + stdev_bytes_5m * 3
+| eval outlier_stats_5m = if(bytes < lb_5m OR bytes > ub_5m, 1, 0)
+
+[Detect using stats model 1h]
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| lookup bytes_stats_by_clientip_5m.csv All_Traffic.src_ip dow hod moh
+| eval lb_1h = avg_bytes_1h - stdev_bytes_1h * 3, ub_1h = avg_bytes_1h + stdev_bytes_1h * 3
+| eval outlier_stats_1h = if(bytes < lb_1h OR bytes > ub_1h, 1, 0)
+
+[Anomalous Byte Sent Detection - detect using probability density model for 1 hour span]
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval biz = if(date="Sat" OR date="Sun", "off", "on")
+| lookup clientip_clusters_1h.csv All_Traffic.src_ip dow hod output cluster_1h
+| where isnotnull(cluster_1h)
+| apply bytes_prbability_density_by_clientip_cluster_1h as outlier_pd_1h
+
