@@ -12,7 +12,7 @@
 # You need to determine the condition to identify weekday, weekend, on-hour, and off-hour based on the your traffic bevior.
 # The example below is the SPL to draw histogram for weekday on-hour. You need to change the search condition to draw histograms for the other categories.
 # Adjust span parameter value for bin command to fit the number of bins for the better histogram shape.
-| tstats summariesonly=true sum(All_Traffic.bytes) from datamodel=Network_Traffic.All_Traffic where earliest=-30d@d AND latest=@d by _time span=5m
+| tstats summariesonly=true sum(All_Traffic.bytes) from datamodel=Network_Traffic.All_Traffic by _time span=5m
 | eval date = strftime(_time, "%Y/%m/%d") 
 | eval dow = strftime(_time, "%a") 
 | eval hod = strftime(_time, "%H") 
@@ -24,10 +24,25 @@
 | stats count by sum(All_Traffic.bytes) 
 | makecontinuous sum(All_Traffic.bytes)
 
+[Draw histogram for specific IP at specific time, Fri, 8 am to 9 am]
+# This needs to run for enough time range. It's expected to run for last 30 days at least.
+# Cnange IP address, 10.0.1.4, to meet your data.
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic where All_Traffic.src_ip="10.0.1.4" by _time span=5m
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval moh = strftime(_time, "%M")
+| eval pod = floor(hod / 8) * 8 
+| search dow=Fri hod=8
+| bin bytes span=100
+| stats count by bytes
+| sort bytes
+| makecontinuous
+
 [Draw histogram for specific IP at specific time, Fri, 8:00 am to 8:05 am]
 # This needs to run for enough time range. It's expected to run for last 30 days at least.
-source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0 clientip=107.3.146.207
-| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
+# Cnange IP address, 10.0.1.4, to meet your data.
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic where All_Traffic.src_ip="10.0.1.4" by _time span=5m
 | eval date = strftime(_time, "%Y/%m/%d") 
 | eval dow = strftime(_time, "%a") 
 | eval hod = strftime(_time, "%H") 
@@ -41,13 +56,42 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 la
 
 [Create stats model 5m]
 # This needs to run for enough time range. It's expected to run for last 30 days at least.
-source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0
-| bin _time span=5m
-| stats count sum(bytes) as bytes by _time clientip
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
 | eval date = strftime(_time, "%Y/%m/%d") 
 | eval dow = strftime(_time, "%a") 
 | eval hod = strftime(_time, "%H") 
 | eval moh = strftime(_time, "%M")
-| stats dc(date) as num_date_points_5m count as num_data_points_5m sum(count) as num_raw_points_5m avg(bytes) as avg_bytes_5m stdev(bytes) as stdev_bytes_5m p50(bytes) as p50_bytes_5m p75(bytes) as p75_bytes_5m p25(bytes) as p25_bytes_5m by clientip dow hod moh
+| stats dc(date) as num_date_points_5m count as num_data_points_5m sum(count) as num_raw_points_5m avg(bytes) as avg_bytes_5m stdev(bytes) as stdev_bytes_5m p50(bytes) as p50_bytes_5m p75(bytes) as p75_bytes_5m p25(bytes) as p25_bytes_5m by All_Traffic.src_ip dow hod moh
 | eval iqr_5m = p75_bytes_5m - p25_bytes_5m
 | outputlookup bytes_stats_by_clientip_5m.csv
+
+[Create stats model 1h]
+# This needs to run for enough time range. It's expected to run for last 30 days at least.
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| stats dc(date) as num_date_points_1h count as num_data_points_1h sum(count) as num_raw_points_1h avg(bytes) as avg_bytes_1h stdev(bytes) as stdev_bytes_1h p50(bytes) as p50_bytes_1h p75(bytes) as p75_bytes_1h p25(bytes) as p25_bytes_1h by All_Traffic.src_ip dow hod
+| eval iqr_1h = p75_bytes_1h - p25_bytes_1h
+| outputlookup bytes_stats_by_clientip_1h.csv
+
+[Cluster similar clients for 1 hour span]
+# This needs to run for enough time range. It's expected to run for last 30 days at least.
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
+| eval date = strftime(_time, "%Y/%m/%d") 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| stats dc(date) as num_date_points count as num_data_points sum(count) as num_raw_points avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) by All_Traffic.src_ip dow hod
+| fit KMeans avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) k=64 as cluster_1h
+| eval hod = if(len(hod)<2, "0"+hod, hod)
+| outputlookup clientip_clusters_1h.csv
+
+[Create probability density model for 1 hour span]
+# This needs to run for enough time range. It's expected to run for last 30 days at least.
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval biz = if(date="Sat" OR date="Sun", "off", "on")
+| lookup clientip_clusters_1h.csv All_Traffic.src_ip dow hod output cluster_1h
+| where isnotnull(cluster_1h)
+| fit DensityFunction bytes by "cluster_1h,biz,hod" into app:bytes_prbability_density_by_clientip_cluster_1h
