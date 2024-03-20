@@ -123,7 +123,7 @@
 | eval dow = strftime(_time, "%a") 
 | eval hod = strftime(_time, "%H") 
 | eval moh = strftime(_time, "%M")
-| lookup bytes_stats_by_clientip_1h.csv All_Traffic.src_ip dow hod moh
+| lookup bytes_stats_by_clientip_5m.csv All_Traffic.src_ip dow hod moh
 | eval lb_5m = avg_bytes_5m - stdev_bytes_5m * 3, ub_5m = avg_bytes_5m + stdev_bytes_5m * 3
 | eval outlier_stats_5m = if(bytes < lb_5m OR bytes > ub_5m, 1, 0)
 
@@ -131,11 +131,11 @@
 | tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
 | eval dow = strftime(_time, "%a") 
 | eval hod = strftime(_time, "%H") 
-| lookup bytes_stats_by_clientip_5m.csv All_Traffic.src_ip dow hod moh
+| lookup bytes_stats_by_clientip_1h.csv All_Traffic.src_ip dow hod
 | eval lb_1h = avg_bytes_1h - stdev_bytes_1h * 3, ub_1h = avg_bytes_1h + stdev_bytes_1h * 3
 | eval outlier_stats_1h = if(bytes < lb_1h OR bytes > ub_1h, 1, 0)
 
-[Anomalous Byte Sent Detection - detect using probability density model for 1 hour span]
+[Detect using probability density model for 1 hour span]
 | tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
 | eval dow = strftime(_time, "%a") 
 | eval hod = strftime(_time, "%H") 
@@ -144,3 +144,118 @@
 | where isnotnull(cluster_1h)
 | apply bytes_prbability_density_by_clientip_cluster_1h as outlier_pd_1h
 
+[Detect using probability density model for 8 hour span]
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval pod = floor(hod / 8) * 8 
+| eval biz = if(date="Sat" OR date="Sun", "off", "on")
+| lookup clientip_clusters_8h.csv All_Traffic.src_ip dow output cluster_8h
+| where isnotnull(cluster_8h)
+| apply bytes_prbability_density_by_clientip_cluster_8h as outlier_pd_8h
+
+[Detect using cohesive approach for 1 hour span]
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| lookup clientip_clusters_1h.csv All_Traffic.src_ip dow hod output cluster_1h
+| eventstats count as count_coh avg(bytes) as avg_bytes stdev(bytes) as stdev_bytes by cluster_1h
+| where isnotnull(avg_bytes) AND isnotnull(stdev_bytes)
+| eval lb_coh = avg_bytes - 3 * stdev_bytes, ub_coh = avg_bytes + 3 * stdev_bytes
+| eval outlier_coh = if(bytes < lb_coh OR bytes > ub_coh, 1, 0)
+| fields _time clientip count bytes cluster_1h lb_coh ub_coh outlier_coh count_coh
+
+[Detect using MAD for last 1 hour]
+# This needs to run for last 1 hour at least.
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
+| sort All_Traffic.src_ip _time
+| streamstats window=12 median(bytes) as median by All_Traffic.src_ip reset_on_change=true
+| eval abs_dev = abs(bytes - median)
+| streamstats window=12 count median(abs_dev) as mad by All_Traffic.src_ip reset_on_change=true
+| eval lb_mad = median - (mad * 1.5), ub_mad = median + (mad * 1.5)
+| eval outlier_mad = if(bytes < lb_mad OR bytes > ub_mad, 1, 0)
+| fields _time All_Traffic.src_ip bytes lb_mad ub_mad outlier_mad count mad median
+| stats latest(_time) as _time latest(*) as * by All_Traffic.src_ip
+| addinfo
+| where _time >= (info_max_time - 600) AND _time < (info_max_time - 300)
+| fields _time All_Traffic.src_ip count bytes mad lb_mad ub_mad outlier_mad
+| outputlookup bytes_mad_results.csv
+
+[Detect using global prediction results]
+# This needs to run for last 1 week at least.
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time span=5m
+| makecontinuous _time
+| fillnull
+| fit StateSpaceForecast bytes holdback=1h forecast_k=1h conf_interval=99
+| addinfo
+| where _time >= (info_max_time - 600) AND _time < (info_max_time - 300)
+| eval outlier_pre_global = if(bytes < 'lower99(predicted(bytes))' OR bytes > 'upper99(predicted(bytes))', 1, 0)
+| fields _time count bytes predicted(bytes) lower99(predicted(bytes)) upper99(predicted(bytes)) outlier_pre_global
+| outputlookup bytes_pre_global_results.csv
+
+[Detect using clustered prediction results]
+# This needs to run for last 1 week at least.
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=1h 
+| stats last(_time) as _time last(bytes) as bytes last(count) as count by All_Traffic.src_ip 
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| lookup clientip_clusters_1h.csv All_Traffic.src_ip dow hod output cluster_1h 
+| where isnotnull(cluster_1h) 
+| join _time cluster_1h type=outer 
+    [ tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=1h 
+    | eval dow = strftime(_time, "%a") 
+    | eval hod = strftime(_time, "%H") 
+    | lookup clientip_clusters_1h.csv All_Traffic.src_ip dow hod output cluster_1h 
+    | where isnotnull(cluster_1h) 
+    | chart p50(bytes) as bytes by _time cluster_1h limit=0 
+    | makecontinuous _time 
+    | fillnull 
+    | predict future_timespan=1 holdback=1 lower99=lower99 upper99=upper99 period=168 
+        [ inputlookup clientip_clusters_1h.csv 
+        | stats count by cluster_1h 
+        | stats values(cluster_1h) as cluster_1h 
+        | eval cluster_1h = mvjoin(cluster_1h, ",") 
+        | return $cluster_1h ] 
+    | foreach lower99(prediction(*)) 
+        [ eval confident_range_<<MATCHSTR>> = '<<FIELD>>' ] 
+    | foreach upper99(prediction(*)) 
+        [ eval confident_range_<<MATCHSTR>> = confident_range_<<MATCHSTR>>."#".'<<FIELD>>' ] 
+    | foreach prediction(*) 
+        [ eval confident_range_<<MATCHSTR>> = confident_range_<<MATCHSTR>>."#".'<<FIELD>>' ] 
+    | fields _time confident_range_* 
+    | untable _time confident_range value 
+    | rex field=confident_range "confident_range_(?<cluster_1h>.+)" 
+    | rex field=value "^(?<lower99>[^#]+)#(?<upper99>[^#]+)#(?<predicted>[^#]+)" 
+    | stats last(lower99) as lower99(predicted(bytes)) last(upper99) as upper99(predicted(bytes)) last(predicted) as predicted(bytes) by _time cluster_1h ]
+| eval outlier_pre_cluster = if(bytes < 'lower99(predicted(bytes))' OR bytes > 'upper99(predicted(bytes))', 1, 0)
+| fields _time cluster_1h count bytes predicted(bytes) lower99(predicted(bytes)) upper99(predicted(bytes)) outlier_pre_cluster
+| outputlookup bytes_pre_cluster_results.csv
+
+[Detect using composite models]
+| tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
+| eval dow = strftime(_time, "%a") 
+| eval hod = strftime(_time, "%H") 
+| eval moh = strftime(_time, "%M") 
+| eval pod = floor(hod / 8) * 8 
+| eval biz = if(date="Sat" OR date="Sun", "off", "on") 
+| lookup bytes_stats_by_clientip_5m.csv All_Traffic.src_ip dow hod moh 
+| lookup bytes_stats_by_clientip_1h.csv All_Traffic.src_ip dow hod 
+| lookup clientip_clusters_1h.csv All_Traffic.src_ip dow hod output cluster_1h 
+| lookup clientip_clusters_8h.csv All_Traffic.src_ip dow pod output cluster_8h 
+| eventstats count as count_coh avg(bytes) stdev(bytes) by cluster_1h 
+| eval lb_5m = avg_bytes_5m - stdev_bytes_5m * 3, ub_5m = avg_bytes_5m + stdev_bytes_5m * 3 
+| eval lb_1h = avg_bytes_1h - stdev_bytes_1h * 3, ub_1h = avg_bytes_1h + stdev_bytes_1h * 3 
+| eval lb_coh = 'avg(bytes)' - 3 * 'stdev(bytes)', ub_coh = 'avg(bytes)' + 3 * 'stdev(bytes)' 
+| eval outlier_stats_5m = if(bytes < lb_5m OR bytes > ub_5m, 1, 0) 
+| eval outlier_stats_1h = if(bytes < lb_1h OR bytes > ub_1h, 1, 0) 
+| apply bytes_prbability_density_by_clientip_cluster_1h as outlier_pd_1h 
+| apply bytes_prbability_density_by_clientip_cluster_8h as outlier_pd_8h 
+| eval outlier_coh = if(bytes < lb_coh OR bytes > ub_coh, 1, 0) 
+| fields - BoundaryRanges
+| lookup bytes_mad_results.csv _time All_Traffic.src_ip output mad lb_mad ub_mad outlier_mad
+| lookup bytes_pre_global_results.csv _time output outlier_pre_global
+| bin _time span=1h as bin_time
+| lookup bytes_pre_cluster_results.csv _time as bin_time cluster_1h output outlier_pre_cluster
+| eval outlier_score = 0
+| foreach outlier_* 
+    [ eval outlier_score = if('<<FIELD>>' = 1, outlier_score + 1, outlier_score) ]
