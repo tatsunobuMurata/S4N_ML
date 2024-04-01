@@ -1,3 +1,5 @@
+======== DATA ANALYSIS ========================================
+
 [Anomalous Byte Sent Detection - histogram for 107.3.146.207, Fri, 8 am to 4 pm]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0 clientip=107.3.146.207
 | bin _time span=5m
@@ -42,6 +44,8 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 la
 | stats count by bytes
 | sort bytes
 | makecontinuous
+
+======== ANOMALY DETECTION BASED ON PROBABILITY ========================================
 
 [Anomalous Byte Sent Detection - create stats model 5m]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0
@@ -153,6 +157,8 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 
 | lookup clientip_clusters_8h.csv clientip dow pod output cluster_8h
 | apply bytes_prbability_density_by_clientip_cluster_8h as outlier_pd_8h
 
+======== ANOMALY DETECTION BASED ON COHESIVE SIMILARITY  ========================================
+
 [Anomalous Byte Sent Detection - detect using cohesive approach for 1 hour span]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 latest=01/16/2023:15:30:0
 | bin _time span=5m
@@ -164,6 +170,8 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 
 | eval lb_coh = 'avg(bytes)' - 3 * 'stdev(bytes)', ub_coh = 'avg(bytes)' + 3 * 'stdev(bytes)'
 | eval outlier_coh = if(bytes < lb_coh OR bytes > ub_coh, 1, 0)
 | fields _time clientip count bytes cluster_1h lb_coh ub_coh outlier_coh count_coh
+
+======== ANOMALY DETECTION BASED ON VOLUME OF CHANGE  ========================================
 
 [Anomalous Byte Sent Detection - detect using MAD for last 1 hour]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:14:25:0 latest=01/16/2023:15:30:0
@@ -181,6 +189,8 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:14:25:0 
 | where _time = (info_max_time - 300)
 | fields _time clientip count bytes mad lb_mad ub_mad outlier_mad
 | outputlookup bytes_mad_results.csv
+
+======== ANOMALY DETECTION BASED ON PREDICTIONS  ========================================
 
 [Anomalous Byte Sent Detection - detect using prediction results]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/15/2023:15:30:0 latest=01/16/2023:15:30:0
@@ -214,6 +224,8 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/9/2023:15:00:0 l
 | eval outlier_pre = if(bytes < bytes_lb OR bytes > bytes_ub, 1, 0)
 | rename bytes_actual as bytes
 | fields _time clientip bytes bytes_prediction bytes_lb bytes_ub outlier_pre
+
+======== ANOMALY DETECTION USING COMPOSITE MODELS  ========================================
 
 [Anomalous Byte Sent Detection - detect using composite models]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 latest=01/16/2023:15:30:0 
