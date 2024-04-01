@@ -84,9 +84,9 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 la
 | stats count sum(bytes) as bytes by _time clientip
 | eval dow = strftime(_time, "%a") 
 | eval hod = strftime(_time, "%H") 
-| eval duty = if(date="Sat" OR date="Sun", "off", "on")
+| eval biz = if(date="Sat" OR date="Sun", "off", "on")
 | lookup clientip_clusters_1h.csv clientip dow hod output cluster_1h
-| fit DensityFunction bytes by "cluster_1h,duty,hod" into app:bytes_prbability_density_by_clientip_cluster_1h
+| fit DensityFunction bytes by "cluster_1h,biz,hod" into app:bytes_prbability_density_by_clientip_cluster_1h
 
 [Anomalous Byte Sent Detection - cluster similar clients for 8 hour span]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0
@@ -107,9 +107,9 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 la
 | eval dow = strftime(_time, "%a") 
 | eval hod = strftime(_time, "%H") 
 | eval pod = floor(hod / 8) * 8 
-| eval duty = if(date="Sat" OR date="Sun", "off", "on")
+| eval biz = if(date="Sat" OR date="Sun", "off", "on")
 | lookup clientip_clusters_8h.csv clientip dow pod output cluster_8h
-| fit DensityFunction bytes by "cluster_8h,duty,pod" into app:bytes_prbability_density_by_clientip_cluster_8h
+| fit DensityFunction bytes by "cluster_8h,biz,pod" into app:bytes_prbability_density_by_clientip_cluster_8h
 
 [Anomalous Byte Sent Detection - detect using stats model 5m]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 latest=01/16/2023:15:30:0
@@ -138,7 +138,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 
 | stats count sum(bytes) as bytes by _time clientip
 | eval dow = strftime(_time, "%a") 
 | eval hod = strftime(_time, "%H") 
-| eval duty = if(date="Sat" OR date="Sun", "off", "on")
+| eval biz = if(date="Sat" OR date="Sun", "off", "on")
 | lookup clientip_clusters_1h.csv clientip dow hod output cluster_1h
 | apply bytes_prbability_density_by_clientip_cluster_1h as outlier_pd_1h
 
@@ -149,7 +149,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 
 | eval dow = strftime(_time, "%a") 
 | eval hod = strftime(_time, "%H") 
 | eval pod = floor(hod / 8) * 8 
-| eval duty = if(date="Sat" OR date="Sun", "off", "on")
+| eval biz = if(date="Sat" OR date="Sun", "off", "on")
 | lookup clientip_clusters_8h.csv clientip dow pod output cluster_8h
 | apply bytes_prbability_density_by_clientip_cluster_8h as outlier_pd_8h
 
@@ -223,7 +223,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 
 | eval hod = strftime(_time, "%H") 
 | eval moh = strftime(_time, "%M") 
 | eval pod = floor(hod / 8) * 8 
-| eval duty = if(date="Sat" OR date="Sun", "off", "on") 
+| eval biz = if(date="Sat" OR date="Sun", "off", "on") 
 | lookup bytes_stats_by_clientip_5m.csv clientip dow hod moh 
 | lookup bytes_stats_by_clientip_1h.csv clientip dow hod 
 | lookup clientip_clusters_1h.csv clientip dow hod output cluster_1h 
