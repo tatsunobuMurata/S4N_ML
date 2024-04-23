@@ -257,5 +257,5 @@
 | bin _time span=1h as bin_time
 | lookup bytes_pre_cluster_results.csv _time as bin_time cluster_1h output outlier_pre_cluster
 | eval outlier_score = 0
-| foreach outlier_* 
-    [ eval outlier_score = if('<<FIELD>>' = 1, outlier_score + 1, outlier_score) ]
+| foreach total_outlier_* 
+    [ eval total_outlier_score = if('<<FIELD>>' = 1, total_outlier_score + 1, total_outlier_score) ]
