@@ -251,6 +251,6 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 
 | eval outlier_coh = if(bytes < lb_coh OR bytes > ub_coh, 1, 0) 
 | fields - BoundaryRanges
 | lookup bytes_mad_results.csv _time clientip output mad lb_mad ub_mad outlier_mad
-| eval outlier_score = 0
+| eval total_outlier_score = 0
 | foreach outlier_* 
-    [ eval outlier_score = if('<<FIELD>>' = 1, outlier_score + 1, outlier_score) ]
+    [ eval total_outlier_score = if('<<FIELD>>' = 1, total_outlier_score + 1, total_outlier_score) ]
