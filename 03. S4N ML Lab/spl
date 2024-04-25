@@ -49,7 +49,7 @@
 | fields SS_*
 | `boxplot`
 
-[Challenges #1: imputer vaule check]
+[Challenges #1: imputer value check]
 | inputlookup "mytrackdata.csv" 
 | fit Imputer x_engineCoolantTemperature strategy="median" 
 | where isnull(x_engineCoolantTemperature)
@@ -64,15 +64,15 @@
 [Challenges #2: experiment]
 | inputlookup mytrackdata.csv
 
-[Challenges #2: draw model lines with histogram]
+[Challenges #2: compare two outlier detection models]
 | inputlookup mytrackdata.csv
-| fit DensityFunction "x_engineSpeed" by "y_vehicleType" dist=auto threshold=0.0001 show_density=true
-| bin x_engineSpeed span=100
-| stats count avg(ProbabilityDensity(x_engineSpeed)) as probability by y_vehicleType x_engineSpeed
-| search y_vehicleType="2008 BMW M3"
-| makecontinuous x_engineSpeed
-| sort x_engineSpeed
-| fields x_engineSpeed count probability
+| streamstats count
+| eventstats avg("x_speed") as avg stdev("x_speed") as stdev
+| eval lowerBound=(avg-stdev*exact(3)), upperBound=(avg+stdev*exact(3))
+| eval isOutlier=if('x_speed' < lowerBound OR 'x_speed' > upperBound, 1, 0)
+| apply car_outlier_df_speed as isOutlier_DF
+| fields count x_speed isOutlier* 
+| fields - _time
 
 [Challenges #3: car_classification RandomForestRegressor]
 | inputlookup mytrackdata.csv
