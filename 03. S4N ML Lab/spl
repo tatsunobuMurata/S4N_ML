@@ -114,4 +114,19 @@
 | fit StandardScaler x_* with_mean=true with_std=true into example_vehicles_StandardScaler_1 
 | fit PCA SS_* k=3 into example_vehicles_PCA_2 
 | fit KMeans k=6 "PC_1" "PC_2" "PC_3" into "example_vehicles"
-| stats count values(y_vehicleType) avg(cluster_distance) by cluster
+| table c* y_* SS_* * 
+| eval t = cluster . "-" . y_vehicleType 
+| stats avg(cluster_distance) as cluster_distance, count by t 
+| rex field=t "(?<cluster>\d+)-(?<y_vehicleType>.+)" 
+| fields - t 
+| stats list(y_vehicleType) as y_vehicleType list(count) as "vehicle count", sum(count) as "sum count", avg(cluster_distance) as "avg cluster-distance" by cluster
+
+[Challenges #4: clustering evaluation in visual]
+| inputlookup mytrackdata.csv 
+| fit Imputer x_engineCoolantTemperature strategy="median"
+| rename Imputed_* as *
+| fit StandardScaler x_* with_mean=true with_std=true into example_vehicles_StandardScaler_1 
+| fit PCA SS_* k=3 into example_vehicles_PCA_2 
+| fit KMeans k=6 "PC_1" "PC_2" "PC_3" into "example_vehicles"
+| rename y_vehicleType as cluster 
+| fields cluster PC_*
