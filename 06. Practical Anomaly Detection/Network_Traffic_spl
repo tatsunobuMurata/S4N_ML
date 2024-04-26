@@ -37,7 +37,7 @@
 | bin bytes span=100
 | stats count by bytes
 | sort bytes
-| makecontinuous
+| makecontinuous bytes
 
 [Draw histogram for specific IP at specific time, Fri, 8:00 am to 8:05 am]
 # This needs to run for enough time range. It's expected to run for last 30 days at least.
@@ -52,7 +52,7 @@
 | bin bytes span=100
 | stats count by bytes
 | sort bytes
-| makecontinuous
+| makecontinuous bytes
 
 [Create stats model 5m]
 # This needs to run for enough time range. It's expected to run for last 30 days at least.
