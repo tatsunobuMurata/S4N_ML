@@ -13,7 +13,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 la
 | bin bytes span=100
 | stats count by bytes
 | sort bytes
-| makecontinuous
+| makecontinuous bytes
 
 [Anomalous Byte Sent Detection - histogram for 107.3.146.207, Fri, 8 am to 9 am]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0 clientip=107.3.146.207
@@ -28,7 +28,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 la
 | bin bytes span=100
 | stats count by bytes
 | sort bytes
-| makecontinuous
+| makecontinuous bytes
 
 [Anomalous Byte Sent Detection - histogram for 107.3.146.207, Fri, 8:00 am to 8:05 am]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0 clientip=107.3.146.207
@@ -43,7 +43,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 la
 | bin bytes span=100
 | stats count by bytes
 | sort bytes
-| makecontinuous
+| makecontinuous bytes
 
 ======== ANOMALY DETECTION BASED ON PROBABILITY ========================================
 
