@@ -219,6 +219,7 @@ index=_audit sourcetype=audittrail search_id!="rsa_*" action=search info=complet
 | apply dga_ngram 
 | apply dga_pca 
 | fields class PC_*
+| fields - _time
 
 [Outlier handling in training data: null hypothesis test for normal distribution]
 | inputlookup server_power.csv 
