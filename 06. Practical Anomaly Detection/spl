@@ -246,8 +246,8 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 
 | eval lb_coh = 'avg(bytes)' - 3 * 'stdev(bytes)', ub_coh = 'avg(bytes)' + 3 * 'stdev(bytes)' 
 | eval outlier_stats_5m = if(bytes < lb_5m OR bytes > ub_5m, 1, 0) 
 | eval outlier_stats_1h = if(bytes < lb_1h OR bytes > ub_1h, 1, 0) 
-| apply bytes_prbability_density_by_clientip_cluster_1h as outlier_pd_1h 
-| apply bytes_prbability_density_by_clientip_cluster_8h as outlier_pd_8h 
+| apply bytes_probability_density_by_clientip_cluster_1h as outlier_pd_1h 
+| apply bytes_probability_density_by_clientip_cluster_8h as outlier_pd_8h 
 | eval outlier_coh = if(bytes < lb_coh OR bytes > ub_coh, 1, 0) 
 | fields - BoundaryRanges
 | lookup bytes_mad_results.csv _time clientip output mad lb_mad ub_mad outlier_mad
