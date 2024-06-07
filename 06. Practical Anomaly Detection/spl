@@ -90,7 +90,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 la
 | eval hod = strftime(_time, "%H") 
 | eval biz = if(date="Sat" OR date="Sun", "off", "on")
 | lookup clientip_clusters_1h.csv clientip dow hod output cluster_1h
-| fit DensityFunction bytes by "cluster_1h,biz,hod" into app:bytes_prbability_density_by_clientip_cluster_1h
+| fit DensityFunction bytes by "cluster_1h,biz,hod" into app:bytes_probability_density_by_clientip_cluster_1h
 
 [Anomalous Byte Sent Detection - cluster similar clients for 8 hour span]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 latest=01/01/2023:0:0:0
@@ -113,7 +113,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 la
 | eval pod = floor(hod / 8) * 8 
 | eval biz = if(date="Sat" OR date="Sun", "off", "on")
 | lookup clientip_clusters_8h.csv clientip dow pod output cluster_8h
-| fit DensityFunction bytes by "cluster_8h,biz,pod" into app:bytes_prbability_density_by_clientip_cluster_8h
+| fit DensityFunction bytes by "cluster_8h,biz,pod" into app:bytes_probability_density_by_clientip_cluster_8h
 
 [Anomalous Byte Sent Detection - detect using stats model 5m]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 latest=01/16/2023:15:30:0
@@ -144,7 +144,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 
 | eval hod = strftime(_time, "%H") 
 | eval biz = if(date="Sat" OR date="Sun", "off", "on")
 | lookup clientip_clusters_1h.csv clientip dow hod output cluster_1h
-| apply bytes_prbability_density_by_clientip_cluster_1h as outlier_pd_1h
+| apply bytes_probability_density_by_clientip_cluster_1h as outlier_pd_1h
 
 [Anomalous Byte Sent Detection - detect using probability density model for 8 hour span]
 source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 latest=01/16/2023:15:30:0
@@ -155,7 +155,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 
 | eval pod = floor(hod / 8) * 8 
 | eval biz = if(date="Sat" OR date="Sun", "off", "on")
 | lookup clientip_clusters_8h.csv clientip dow pod output cluster_8h
-| apply bytes_prbability_density_by_clientip_cluster_8h as outlier_pd_8h
+| apply bytes_probability_density_by_clientip_cluster_8h as outlier_pd_8h
 
 ======== ANOMALY DETECTION BASED ON COHESIVE SIMILARITY  ========================================
 
