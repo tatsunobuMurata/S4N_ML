@@ -79,13 +79,15 @@
 
 [Forecasting: fit]
 | inputlookup app-logins.csv
-| timechart dc(user) as users span=1h
+| bin _time span=1h
+| stats dc(user) as users by _time
 | fit StateSpaceForecast users holdback=72 forecast_k=144 conf_interval=95 output_metadata=true into my_logins_ssf
 | `smartforecastviz("users")`
 
 [Forecasting: apply & rmse]
 | inputlookup app-logins.csv
-| timechart dc(user) as users span=1h
+| bin _time span=1h
+| stats dc(user) as users by _time
 | apply my_logins_ssf
 | `smartforecastviz("users")`
 | eval error = users - 'predicted(users)'
