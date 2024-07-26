@@ -178,9 +178,9 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:14:25:0 
 | bin _time span=5m
 | stats count sum(bytes) as bytes by _time clientip
 | sort clientip _time
-| streamstats window=12 median(bytes) as median by clientip reset_on_change=true
+| eventstats median(bytes) as median by clientip
 | eval abs_dev = abs(bytes - median)
-| streamstats window=12 count median(abs_dev) as mad by clientip reset_on_change=true
+| eventstats count median(abs_dev) as mad by clientip
 | eval lb_mad = median - (mad * 1.5), ub_mad = median + (mad * 1.5)
 | eval outlier_mad = if(bytes < lb_mad OR bytes > ub_mad, 1, 0)
 | fields _time clientip bytes lb_mad ub_mad outlier_mad count mad median
