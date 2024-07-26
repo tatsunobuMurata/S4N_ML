@@ -169,9 +169,9 @@
 # This needs to run for last 1 hour at least.
 | tstats summariesonly=true count sum(All_Traffic.bytes) as bytes from datamodel=Network_Traffic.All_Traffic by _time All_Traffic.src_ip span=5m
 | sort All_Traffic.src_ip _time
-| streamstats window=12 median(bytes) as median by All_Traffic.src_ip reset_on_change=true
+| eventstats median(bytes) as median by All_Traffic.src_ip
 | eval abs_dev = abs(bytes - median)
-| streamstats window=12 count median(abs_dev) as mad by All_Traffic.src_ip reset_on_change=true
+| eventstats count median(abs_dev) as mad by All_Traffic.src_ip
 | eval lb_mad = median - (mad * 1.5), ub_mad = median + (mad * 1.5)
 | eval outlier_mad = if(bytes < lb_mad OR bytes > ub_mad, 1, 0)
 | fields _time All_Traffic.src_ip bytes lb_mad ub_mad outlier_mad count mad median
