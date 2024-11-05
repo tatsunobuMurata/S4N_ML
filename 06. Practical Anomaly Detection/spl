@@ -78,7 +78,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 la
 | eval dow = strftime(_time, "%a") 
 | eval hod = strftime(_time, "%H") 
 | stats dc(date) as num_date_points count as num_data_points sum(count) as num_raw_points avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) by clientip dow hod
-| fit KMeans avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) k=64 as cluster_1h
+| fit KMeans avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) k=64 random_state=42 as cluster_1h
 | eval hod = if(len(hod)<2, "0"+hod, hod)
 | outputlookup clientip_clusters_1h.csv
 
@@ -101,7 +101,7 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 la
 | eval hod = strftime(_time, "%H") 
 | eval pod = floor(hod / 8) * 8 
 | stats dc(date) as num_date_points count as num_data_points sum(count) as num_raw_points avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) by clientip dow pod
-| fit KMeans avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) k=64 as cluster_8h
+| fit KMeans avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) k=64 random_state=42 as cluster_8h
 | outputlookup clientip_clusters_8h.csv
 
 [Anomalous Byte Sent Detection - create probability density model for 8 hour span]
