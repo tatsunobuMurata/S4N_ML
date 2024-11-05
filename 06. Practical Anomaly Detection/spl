@@ -78,7 +78,8 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 la
 | eval dow = strftime(_time, "%a") 
 | eval hod = strftime(_time, "%H") 
 | stats dc(date) as num_date_points count as num_data_points sum(count) as num_raw_points avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) by clientip dow hod
-| fit KMeans avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) k=64 random_state=42 as cluster_1h
+| fit StandardScaler num_date_points num_data_points num_raw_points avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes)
+| fit KMeans SS_* k=64 random_state=42 as cluster_1h
 | eval hod = if(len(hod)<2, "0"+hod, hod)
 | outputlookup clientip_clusters_1h.csv
 
@@ -101,7 +102,8 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/01/2022:0:0:0 la
 | eval hod = strftime(_time, "%H") 
 | eval pod = floor(hod / 8) * 8 
 | stats dc(date) as num_date_points count as num_data_points sum(count) as num_raw_points avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) by clientip dow pod
-| fit KMeans avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes) k=64 random_state=42 as cluster_8h
+| fit StandardScaler num_date_points num_data_points num_raw_points avg(bytes) stdev(bytes) p50(bytes) p75(bytes) p25(bytes)
+| fit KMeans SS_* k=64 random_state=42 as cluster_8h
 | outputlookup clientip_clusters_8h.csv
 
 [Anomalous Byte Sent Detection - create probability density model for 8 hour span]
@@ -166,10 +168,11 @@ source="client_bytes.csv.zip:*" host="client_bytes" earliest=01/16/2023:15:25:0 
 | eval dow = strftime(_time, "%a") 
 | eval hod = strftime(_time, "%H") 
 | lookup clientip_clusters_1h.csv clientip dow hod output cluster_1h
-| eventstats count as count_coh avg(bytes) stdev(bytes) by cluster_1h
-| eval lb_coh = 'avg(bytes)' - 3 * 'stdev(bytes)', ub_coh = 'avg(bytes)' + 3 * 'stdev(bytes)'
-| eval outlier_coh = if(bytes < lb_coh OR bytes > ub_coh, 1, 0)
-| fields _time clientip count bytes cluster_1h lb_coh ub_coh outlier_coh count_coh
+| fit StandardScaler count bytes
+| fit KMeans SS_* k=1 random_state=42
+| eventstats count as cluster_size avg(cluster_distance) stdev(cluster_distance) by cluster cluster_1h
+| eval lb_coh = 'avg(cluster_distance)' - 3 * 'stdev(cluster_distance)', ub_coh = 'avg(cluster_distance)' + 3 * 'stdev(cluster_distance)'
+| eval outlier_coh = if(cluster_distance < lb_coh OR cluster_distance > ub_coh, 1, 0)
 
 ======== ANOMALY DETECTION BASED ON VOLUME OF CHANGE  ========================================
 
